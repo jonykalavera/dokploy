@@ -3,6 +3,16 @@ import { spawn } from "node-pty";
 import { WebSocketServer } from "ws";
 import { validateWebSocketRequest } from "../auth/auth";
 import { getShell } from "./utils";
+import { validateBearerToken } from "../auth/token";
+
+export async function authenticate(req, validators) {
+	for (const validator of validators) {
+        let {user, session} = await validator(req);
+		if (user && session) {
+			return {user, session};
+		}
+	}
+}
 
 export const setupDockerContainerLogsWebSocketServer = (
 	server: http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>,
@@ -30,7 +40,7 @@ export const setupDockerContainerLogsWebSocketServer = (
 		const url = new URL(req.url || "", `http://${req.headers.host}`);
 		const containerId = url.searchParams.get("containerId");
 		const tail = url.searchParams.get("tail");
-		const { user, session } = await validateWebSocketRequest(req);
+		const { user, session } = await authenticate(req, [validateWebSocketRequest, validateBearerToken]);
 
 		if (!containerId) {
 			ws.close(4000, "containerId no provided");
